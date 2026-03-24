@@ -22,8 +22,12 @@ def main():
     ![未来增长](images/forecast.png)
     """
 
-    template_file = 'templates/MasterTemplate.pptx'
-    prs = load_template(template_file)
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    # template_file = 'templates/MasterTemplate.pptx'
+    template_file = 'FairFramesPresentation.pptx'
+    template_path = os.path.join(project_root, 'templates', template_file)
+    print(template_path)
+    prs = load_template(template_path)
 
     print("Available Slide Layouts:")
     print_layouts(prs)
@@ -32,8 +36,9 @@ def main():
 
     powerpoint_data, presentation_title = parse_input_text(input_text, layout_mapping)
 
-    output_pptx = f"outputs/{presentation_title}.pptx"
-    generate_presentation(powerpoint_data, template_file, output_pptx)
+
+    output_pptx = os.path.join(project_root,"outputs", f"{presentation_title}.pptx")
+    generate_presentation(powerpoint_data, template_path, output_pptx)
 
 if __name__ == "__main__":
     main()
