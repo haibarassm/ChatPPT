@@ -1,2 +1,10 @@
 python-pptx==1.0.2
 loguru==0.7.2
+gradio>=4.0.0
+langchain>=0.3.0
+langchain-openai>=0.2.0
+langchain-ollama>=0.2.0
+langchain-core>=0.3.0
+openai>=1.0.0
+pandas>=2.0.0
+pillow>=10.0.0

@@ -44,17 +44,40 @@ def generate_presentation(powerpoint_data, template_path: str, output_path: str)
                 break
 
         # 插入图片
-        if slide.content.image_path:
-            image_full_path = os.path.join(os.getcwd(), slide.content.image_path)  # 构建图片的绝对路径
+        # 检查是否有有效的图片路径
+        if slide.content.image_path and str(slide.content.image_path).strip():
+            # 标准化路径（处理正斜杠/反斜杠）
+            image_path_str = str(slide.content.image_path).replace('\\', '/').replace('/', os.sep)
+
+            # 判断是否是绝对路径
+            if os.path.isabs(image_path_str):
+                image_full_path = image_path_str
+            else:
+                # 相对路径，转换为绝对路径
+                image_full_path = os.path.abspath(os.path.join(os.getcwd(), image_path_str))
+
+            LOG.debug(f"处理图片路径: 原始='{slide.content.image_path}' -> 绝对='{image_full_path}'")
+
+            # 检查文件是否存在
             if os.path.exists(image_full_path):
                 # 插入图片到占位符中
+                inserted = False
                 for shape in new_slide.placeholders:
                     if shape.placeholder_format.type == 18:  # 18 表示图片占位符
-                        shape.insert_picture(image_full_path)
-                        LOG.debug(f"插入图片: {image_full_path}")
-                        break
+                        try:
+                            shape.insert_picture(image_full_path)
+                            LOG.info(f"成功插入图片: {image_full_path}")
+                            inserted = True
+                            break
+                        except Exception as e:
+                            LOG.error(f"插入图片失败: {image_full_path}, 错误: {e}")
+
+                if not inserted:
+                    LOG.warning(f"幻灯片 '{slide.content.title}' 没有找到图片占位符，跳过图片插入")
             else:
-                LOG.warning(f"图片路径 '{image_full_path}' 不存在，跳过此图片。")
+                LOG.warning(f"图片路径不存在: {image_full_path}")
+        else:
+            LOG.debug(f"幻灯片 '{slide.content.title}' 无有效图片路径，跳过图片插入")
 
     # 保存生成的 PowerPoint 文件
     prs.save(output_path)

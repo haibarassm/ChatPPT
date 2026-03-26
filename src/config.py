@@ -5,7 +5,7 @@ class Config:
     def __init__(self, config_file='config.json'):
         self.config_file = config_file
         self.load_config()
-    
+
     def load_config(self):
         # 检查 config 文件是否存在
         if not os.path.exists(self.config_file):
@@ -13,12 +13,18 @@ class Config:
 
         with open(self.config_file, 'r') as f:
             config = json.load(f)
-            
+
             # 加载 ChatPPT 运行模式（默认文本模态）
             self.input_mode = config.get('input_mode', "text")
-            
+
             # 加载 PPT 默认模板
             self.ppt_template = config.get('ppt_template', "templates/MasterTemplate.pptx")
-            
+
             # 加载布局映射
             self.layout_mapping = config.get('layout_mapping', {})
+
+            # 加载 LLM 配置
+            llm_config = config.get('llm', {})
+            self.llm_provider = llm_config.get('provider', 'openai')
+            self.llm_model = llm_config.get('model')
+            self.llm_temperature = llm_config.get('temperature', 0.7)
