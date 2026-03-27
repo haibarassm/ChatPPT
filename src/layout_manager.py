@@ -157,7 +157,7 @@ class LayoutValidator:
 
         # 检查需要的占位符
         has_content = content.bullet_points and len(content.bullet_points) > 0
-        has_image = content.image_path and len(str(content.image_path).strip()) > 0
+        has_image = content.image_paths and len(content.image_paths) > 0
 
         # 检查是否有足够的占位符
         body_count = sum(1 for p in spec.placeholders if p.type == PlaceholderType.BODY)
@@ -408,7 +408,7 @@ class LayoutManager:
             (布局ID, 布局名称)
         """
         # 检查是否有有效的图片路径
-        has_image = slide_content.image_path and len(str(slide_content.image_path).strip()) > 0
+        has_image = slide_content.image_paths and len(slide_content.image_paths) > 0
         # 检查是否有要点
         has_bullets = slide_content.bullet_points and len(slide_content.bullet_points) > 0
 
@@ -416,13 +416,13 @@ class LayoutManager:
         if has_image and has_bullets:
             # 既有图片又有要点
             group = self.layout_groups['content_with_image']
-            LOG.debug(f"幻灯片 '{slide_content.title}': 有图片, 有{len(slide_content.bullet_points)}个要点 -> 使用布局组: {group.name}")
+            LOG.debug(f"幻灯片 '{slide_content.title}': 有{len(slide_content.image_paths)}张图片, 有{len(slide_content.bullet_points)}个要点 -> 使用布局组: {group.name}")
             return group.select_best_layout(slide_content, self.layout_mapping)
 
         elif has_image:
             # 只有图片
             group = self.layout_groups['image_only']
-            LOG.debug(f"幻灯片 '{slide_content.title}': 有图片, 无要点 -> 使用布局组: {group.name}")
+            LOG.debug(f"幻灯片 '{slide_content.title}': 有{len(slide_content.image_paths)}张图片, 无要点 -> 使用布局组: {group.name}")
             return group.select_best_layout(slide_content, self.layout_mapping)
 
         elif has_bullets:

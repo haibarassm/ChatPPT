@@ -1,12 +1,12 @@
 from typing import Optional, List
 from dataclasses import dataclass, field
 
-# 定义 SlideContent 数据类，表示幻灯片的内容，包括标题、要点列表、图片路径。
+# 定义 SlideContent 数据类，表示幻灯片的内容，包括标题、要点列表、图片路径列表。
 @dataclass
 class SlideContent:
     title: str  # 幻灯片的标题
     bullet_points: List[str] = field(default_factory=list)  # 幻灯片中的要点列表，默认为空列表
-    image_path: Optional[str] = None  # 幻灯片中的图片路径，默认为 None
+    image_paths: List[str] = field(default_factory=list)  # 幻灯片中的图片路径列表，支持多张图片
 
 # 定义 Slide 数据类，表示每张幻灯片，包括布局 ID、布局名称以及幻灯片内容。
 @dataclass
@@ -30,6 +30,6 @@ class PowerPoint:
             result.append(f"  Layout: {slide.layout_name} (ID: {slide.layout_id})")  # 打印布局名称和 ID
             if slide.content.bullet_points:
                 result.append(f"  Bullet Points: {', '.join(slide.content.bullet_points)}")  # 打印要点列表
-            if slide.content.image_path:
-                result.append(f"  Image: {slide.content.image_path}")  # 打印图片路径
+            if slide.content.image_paths:
+                result.append(f"  Images: {', '.join(slide.content.image_paths)}")  # 打印图片路径列表
         return "\n".join(result)

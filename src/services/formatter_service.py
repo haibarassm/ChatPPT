@@ -62,9 +62,10 @@ class FormatterService:
         if file_info.get("images"):
             images = file_info.get('images', [])
             if images:
-                # 确保路径使用正斜杠
+                # 确保路径使用正斜杠，并为每张图片编号
                 normalized_paths = [Path(img).as_posix() if isinstance(img, str) else str(img) for img in images]
-                context_parts.append(f"【可用图片文件】: {', '.join(normalized_paths)}")
+                image_list = "\n".join([f"{i+1}. {path}" for i, path in enumerate(normalized_paths)])
+                context_parts.append(f"【可用图片文件】（共{len(images)}张，请在相关幻灯片中使用）:\n{image_list}")
                 LOG.debug(f"提供图片路径给LLM: {normalized_paths}")
 
         # 再处理文本内容
@@ -79,7 +80,11 @@ class FormatterService:
 
 {context}
 
-**重要提示**: 如果在生成PPT时需要使用图片，请只使用【可用图片文件】中列出的路径，不要使用其他内容中的图片路径。
+**重要提示**:
+- 如果【可用图片文件】中有提供图片，请将这些图片合理分配到相关的幻灯片中
+- 每张幻灯片最多使用一张图片
+- 请务必使用【可用图片文件】中列出的完整路径，不要省略或修改路径
+- 图片语法应放在幻灯片要点的最后
 
 请按照上述格式要求转换为markdown。"""
 

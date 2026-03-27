@@ -63,7 +63,7 @@ def parse_input_text(input_text: str, layout_manager: LayoutManager) -> PowerPoi
     支持的格式：
     - 标题：# 主标题、## 幻灯片标题
     - 列表：**标题**：内容、- 内容、* 内容、1. 内容、· 内容
-    - 图片：![描述](路径)
+    - 图片：![描述](路径) - 支持多张图片
     """
     lines = input_text.split('\n')
     presentation_title = ""
@@ -106,12 +106,12 @@ def parse_input_text(input_text: str, layout_manager: LayoutManager) -> PowerPoi
                 slide_builder = SlideBuilder(layout_manager)
                 slide_builder.set_title(title)
 
-        # 图片插入
+        # 图片插入 - 支持多张图片
         elif line.startswith('![') and slide_builder:
             match = image_pattern.match(line)
             if match:
                 image_path = match.group(1).strip()
-                slide_builder.set_image(image_path)
+                slide_builder.add_image(image_path)
 
         # 尝试提取为列表项
         else:

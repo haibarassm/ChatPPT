@@ -45,37 +45,46 @@ def generate_presentation(powerpoint_data, template_path: str, output_path: str)
 
         # 插入图片
         # 检查是否有有效的图片路径
-        if slide.content.image_path and str(slide.content.image_path).strip():
-            # 标准化路径（处理正斜杠/反斜杠）
-            image_path_str = str(slide.content.image_path).replace('\\', '/').replace('/', os.sep)
+        if slide.content.image_paths and len(slide.content.image_paths) > 0:
+            LOG.debug(f"幻灯片 '{slide.content.title}' 有 {len(slide.content.image_paths)} 张图片待插入")
 
-            # 判断是否是绝对路径
-            if os.path.isabs(image_path_str):
-                image_full_path = image_path_str
-            else:
-                # 相对路径，转换为绝对路径
-                image_full_path = os.path.abspath(os.path.join(os.getcwd(), image_path_str))
+            for idx, image_path in enumerate(slide.content.image_paths):
+                # 标准化路径（处理正斜杠/反斜杠）
+                image_path_str = str(image_path).replace('\\', '/').replace('/', os.sep)
 
-            LOG.debug(f"处理图片路径: 原始='{slide.content.image_path}' -> 绝对='{image_full_path}'")
+                # 判断是否是绝对路径
+                if os.path.isabs(image_path_str):
+                    image_full_path = image_path_str
+                else:
+                    # 相对路径，转换为绝对路径
+                    image_full_path = os.path.abspath(os.path.join(os.getcwd(), image_path_str))
 
-            # 检查文件是否存在
-            if os.path.exists(image_full_path):
-                # 插入图片到占位符中
-                inserted = False
-                for shape in new_slide.placeholders:
-                    if shape.placeholder_format.type == 18:  # 18 表示图片占位符
-                        try:
-                            shape.insert_picture(image_full_path)
-                            LOG.info(f"成功插入图片: {image_full_path}")
-                            inserted = True
-                            break
-                        except Exception as e:
-                            LOG.error(f"插入图片失败: {image_full_path}, 错误: {e}")
+                LOG.debug(f"处理图片路径 [{idx+1}]: 原始='{image_path}' -> 绝对='{image_full_path}'")
 
-                if not inserted:
-                    LOG.warning(f"幻灯片 '{slide.content.title}' 没有找到图片占位符，跳过图片插入")
-            else:
-                LOG.warning(f"图片路径不存在: {image_full_path}")
+                # 检查文件是否存在
+                if os.path.exists(image_full_path):
+                    # 插入图片到占位符中
+                    inserted = False
+                    placeholder_found = False
+
+                    for shape in new_slide.placeholders:
+                        if shape.placeholder_format.type == 18:  # 18 表示图片占位符
+                            placeholder_found = True
+                            try:
+                                shape.insert_picture(image_full_path)
+                                LOG.info(f"成功插入图片 [{idx+1}]: {image_full_path}")
+                                inserted = True
+                                break
+                            except Exception as e:
+                                LOG.error(f"插入图片失败 [{idx+1}]: {image_full_path}, 错误: {e}")
+
+                    if not inserted and placeholder_found:
+                        LOG.warning(f"幻灯片 '{slide.content.title}' 的图片占位符已满，跳过图片 [{idx+1}]")
+                    elif not inserted and not placeholder_found:
+                        LOG.warning(f"幻灯片 '{slide.content.title}' 没有找到图片占位符，跳过所有图片插入")
+                        break  # 没有占位符，跳出图片循环
+                else:
+                    LOG.warning(f"图片路径不存在 [{idx+1}]: {image_full_path}")
         else:
             LOG.debug(f"幻灯片 '{slide.content.title}' 无有效图片路径，跳过图片插入")
 

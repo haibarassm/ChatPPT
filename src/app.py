@@ -1,13 +1,14 @@
 """
-ChatPPT Gradio应用主入口
+ChatPPT Gradio应用主入口 - 聊天界面版本
 """
 
 import gradio as gr
-from typing import List, Optional
+from typing import List, Tuple, Optional
+from pathlib import Path
 
 from config import Config
 from services import FileService, LLMService, FormatterService, PPTService
-from ui import GITHUB_THEME, create_header, create_footer
+from ui import create_header, create_footer
 
 # 初始化服务
 config = Config()
@@ -16,180 +17,219 @@ llm_service = LLMService(config)
 formatter_service = FormatterService(llm_service.llm)
 ppt_service = PPTService()
 
-# 全局状态：累积的文件列表
-accumulated_files: List[str] = []
 
+def process_message(message: dict, history: List) -> Tuple[str, List]:
+    """处理用户消息并生成回复
 
-def add_files(new_files: Optional[List]) -> str:
-    """添加新文件到累积列表"""
-    global accumulated_files
+    Args:
+        message: 用户消息（多模态格式，包含text和files）
+        history: 聊天历史（新格式：包含role和content的字典列表）
 
-    if not new_files:
-        if accumulated_files:
-            return f"已选择 {len(accumulated_files)} 个文件"
-        return "未选择文件"
+    Returns:
+        (回复消息, 更新后的历史记录)
+    """
+    # 从多模态消息中提取文本和文件
+    text = message.get("text", "")
+    files = message.get("files", [])
 
-    # 处理新文件
-    if isinstance(new_files, list):
-        for f in new_files:
-            if isinstance(f, str):
-                file_path = f
-            elif hasattr(f, 'name'):
-                file_path = f.name
-            else:
-                continue
-
-            # 避免重复
-            if file_path not in accumulated_files:
-                accumulated_files.append(file_path)
-    elif isinstance(new_files, str):
-        if new_files not in accumulated_files:
-            accumulated_files.append(new_files)
-    elif hasattr(new_files, 'name'):
-        if new_files.name not in accumulated_files:
-            accumulated_files.append(new_files.name)
-
-    return f"已选择 {len(accumulated_files)} 个文件"
-
-
-def clear_files():
-    """清空文件列表"""
-    global accumulated_files
-    accumulated_files = []
-    return "未选择文件"
-
-
-def process_and_generate(user_input: str, files, progress=gr.Progress()):
-    """处理用户输入并生成PPT的完整流程"""
-
-    global accumulated_files
-
-    # 使用累积的文件列表
-    use_files = accumulated_files if accumulated_files else files
-
-    if not user_input and not use_files:
-        return "❌ 请输入内容或上传文件", None
+    if not text and not files:
+        reply = "❌ 请输入内容或上传文件"
+        # 转换为Chatbot支持的格式
+        user_content = text if text else "（上传了文件）"
+        history.append({"role": "user", "content": user_content})
+        history.append({"role": "assistant", "content": reply})
+        return reply, history
 
     try:
+        # 构建处理进度消息
+        processing_msg = "⏳ 正在处理您的请求..."
+
         # 处理上传的文件
-        progress(0.1, desc="处理文件...")
-        file_info = file_service.process_files(use_files) if use_files else {"images": [], "content": ""}
+        if files:
+            file_count = len(files)
+            file_types = set()
+            for f in files:
+                if isinstance(f, str):
+                    ext = Path(f).suffix.lower()
+                else:
+                    ext = Path(f.name).suffix.lower() if hasattr(f, 'name') else ''
+                if ext in ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp']:
+                    file_types.add("图片")
+                elif ext in ['.xlsx', '.xls', '.csv']:
+                    file_types.add("表格")
+                elif ext in ['.txt', '.md']:
+                    file_types.add("文本")
+
+            file_info = file_service.process_files(files)
+            file_desc = f"、".join(file_types)
+            processing_msg += f"\n\n📎 已接收 {file_count} 个文件（{file_desc}）"
+        else:
+            file_info = {"images": [], "content": ""}
 
         # 调用LLM进行格式转换
-        progress(0.3, desc="调用AI格式化...")
         markdown_content = formatter_service.format_to_markdown(
-            user_input or "请根据上传的文件内容生成PPT",
+            text or "请根据上传的文件内容生成PPT",
             file_info
         )
 
         # 生成PPT
-        progress(0.5, desc="生成PPT...")
         status_msg, ppt_path = ppt_service.generate_from_markdown(markdown_content)
 
-        progress(1.0, desc="完成!")
+        # 构建回复消息
+        if ppt_path:
+            ppt_name = Path(ppt_path).name
+            reply = f"""✅ **PPT生成成功！**
 
-        # 生成后清空文件列表
-        accumulated_files = []
+**文件名：** {ppt_name}
 
-        return status_msg, ppt_path
+**生成详情：**
+{status_msg}
+
+💡 您可以在下方下载框中下载生成的PPT文件。"""
+        else:
+            reply = f"""❌ **生成失败**
+
+{status_msg}
+
+💡 请检查您的输入或文件格式是否正确。"""
+
+        # 构建用户消息内容（添加文件信息）
+        if files:
+            file_info_text = f"\n\n📎 附件：{len(files)} 个文件"
+            user_content = text + file_info_text
+        else:
+            user_content = text
+
+        # 更新历史记录（转换为Chatbot支持的格式）
+        history.append({"role": "user", "content": user_content})
+        history.append({"role": "assistant", "content": reply})
+
+        return reply, history
 
     except Exception as e:
-        return f"❌ 处理失败: {str(e)}", None
+        import traceback
+        error_detail = traceback.format_exc()
+        error_msg = f"""❌ **处理失败**
 
+**错误信息：** {str(e)}
 
-def clear_all():
-    """清空所有内容"""
-    global accumulated_files
-    accumulated_files = []
-    # 返回5个值对应5个输出组件
-    return "", None, "未选择文件", "等待生成...", None
+💡 可能的原因：
+- 上传的文件格式不支持
+- LLM服务连接失败
+- 输入内容格式不正确
+
+请检查后重试。"""
+        user_content = text if text else "（上传了文件）"
+        history.append({"role": "user", "content": user_content})
+        history.append({"role": "assistant", "content": error_msg})
+        return error_msg, history
 
 
 def create_ui():
-    """创建Gradio UI - 简化布局"""
+    """创建Gradio聊天UI"""
 
-    with gr.Blocks(title="ChatPPT - AI驱动的PPT生成工具") as app:
+    with gr.Blocks(title="ChatPPT - AI驱动的PPT生成工具",theme=gr.themes.Base()) as app:
 
         # 头部
         create_header()
 
-        # 主内容行：三列并排
+        gr.Markdown("### 💬 对话生成PPT")
+        gr.Markdown("告诉我您想要什么主题的PPT，或者点击📎上传文件，我会为您生成")
+
+        # 使用说明
+        gr.Markdown("""
+        **使用方式：**
+        - 📝 输入文字描述您想要的PPT主题
+        - 📎 点击左侧📎按钮上传文件（支持图片、Excel、CSV、文本等）
+        - 📂 支持同时上传多个文件
+        - 🚀 点击生成按钮即可获得PPT
+        """)
+
+        # 聊天界面
+        chatbot = gr.Chatbot(
+            label="对话历史",
+            height=350,
+            show_label=True
+        )
+
+        # 多模态输入框（支持文本和文件）
+        msg_input = gr.MultimodalTextbox(
+            label="输入消息",
+            placeholder="输入您想要生成的PPT主题，例如：制作一份关于人工智能的PPT\n\n💡 提示：可以点击左侧📎按钮上传图片、表格等文件作为参考",
+            show_label=True,
+            container=True,
+            lines=3,
+            file_count="multiple",  # 支持多文件上传
+            file_types=["image", ".xlsx", ".xls", ".csv", ".txt", ".md"]  # 支持的文件类型
+        )
+
         with gr.Row():
-            # 左列：文本输入 (scale=1 确保三列等宽)
-            with gr.Column(scale=1):
-                gr.Markdown("### 📝 输入")
-                user_input = gr.Textbox(
-                    label="描述内容",
-                    placeholder="例如: 制作一份关于GitHub Sentinel的PPT...",
-                    lines=12,
-                    max_lines=20,
-                    show_label=True
-                )
+            submit_btn = gr.Button("🚀 生成PPT", variant="primary", size="lg", scale=2)
+            clear_btn = gr.Button("🔄 清空对话", variant="secondary", size="lg", scale=1)
 
-            # 中列：文件操作
-            with gr.Column(scale=1):
-                gr.Markdown("### 📎 文件")
-                gr.Markdown("""
-                <div style="font-size: 11px; color: #8b949e;">
-                可多次累积<br>支持图片、表格、文档
-                </div>
-                """)
+        # 示例说明
+        gr.Examples(
+            examples=[
+                [{"text": "帮我生成一份关于人工智能发展历程的PPT"}],
+                [{"text": "制作一份公司季度汇报PPT"}],
+                [{"text": "生成一份产品介绍PPT，突出核心功能"}],
+            ],
+            inputs=msg_input,
+            label="💡 示例提示"
+        )
 
-                file_upload = gr.File(
-                    label="选择文件",
-                    file_count="multiple",
-                    file_types=["image", ".xlsx", ".xls", ".csv", ".txt", ".md"],
-                    type="filepath"
-                )
+        # 下载区域（显示最新生成的PPT）
+        ppt_download = gr.File(
+            label="📥 下载最新PPT",
+            file_count="single",
+            interactive=False
+        )
 
-                file_status = gr.Textbox(
-                    label="状态",
-                    value="未选择文件",
-                    interactive=False
-                )
-
-            # 右列：输出结果
-            with gr.Column(scale=1):
-                gr.Markdown("### 📊 结果")
-
-                status_output = gr.Textbox(
-                    label="生成状态",
-                    value="等待生成...",
-                    interactive=False,
-                    lines=5
-                )
-
-                ppt_download = gr.File(
-                    label="下载PPT",
-                    file_count="single",
-                    interactive=False
-                )
-
-        # 操作按钮行
-        with gr.Row():
-            generate_btn = gr.Button("🚀 生成PPT", variant="primary", size="lg", scale=3)
-            clear_btn = gr.Button("🔄 清空", variant="secondary", size="lg", scale=1)
+        # 使用State存储当前PPT路径
+        ppt_state = gr.State(value=None)
 
         # 底部
         create_footer()
 
         # 绑定事件
-        file_upload.change(
-            fn=add_files,
-            inputs=file_upload,
-            outputs=file_status
+        def handle_submit(message, history, current_ppt):
+            """处理提交"""
+            if not message:
+                return history, None, None, current_ppt
+
+            reply, updated_history = process_message(message, history)
+
+            # 尝试从outputs目录获取最新的PPT文件
+            ppt_path = None
+            if "✅ PPT生成成功" in reply:
+                try:
+                    import glob
+                    import os
+                    ppt_files = glob.glob("outputs/*.pptx")
+                    if ppt_files:
+                        # 获取最新修改的文件
+                        ppt_path = max(ppt_files, key=os.path.getmtime)
+                except:
+                    pass
+
+            # 返回更新后的历史、新PPT路径、清空输入框、更新状态
+            return updated_history, ppt_path, None, ppt_path
+
+        submit_btn.click(
+            fn=handle_submit,
+            inputs=[msg_input, chatbot, ppt_state],
+            outputs=[chatbot, ppt_download, msg_input, ppt_state]
         )
 
-        generate_btn.click(
-            fn=process_and_generate,
-            inputs=[user_input, file_upload],
-            outputs=[status_output, ppt_download],
-            show_progress="full"
+        msg_input.submit(
+            fn=handle_submit,
+            inputs=[msg_input, chatbot, ppt_state],
+            outputs=[chatbot, ppt_download, msg_input, ppt_state]
         )
 
         clear_btn.click(
-            fn=clear_all,
-            outputs=[user_input, file_upload, file_status, status_output, ppt_download]
+            fn=lambda: ([], None, None, None),
+            outputs=[chatbot, ppt_download, msg_input, ppt_state]
         )
 
     return app
