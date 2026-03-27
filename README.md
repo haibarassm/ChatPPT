@@ -55,7 +55,7 @@ python src/main.py test_input.md
 通过此模式，您可以手动提供 PowerPoint 文件内容（格式请参考：[ChatPPT 输入文本格式说明](docs/ppt_input_format.md)），并按照配置的 [PowerPoint 模板](templates/StandardTemplate.pptx),生成演示文稿。
 
 ## 0.2版本之后的gradio页面截图
-![img.png](img.png)
+![img_1.png](img_1.png)
 ## 贡献
 
 我们欢迎所有的贡献！如果你有任何建议或功能请求，请先开启一个议题讨论。你的帮助将使 ChatPPT 变得更加完善。
