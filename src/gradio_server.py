@@ -78,11 +78,7 @@ def handle_generate(history):
 
 # 创建 Gradio 界面
 with gr.Blocks(
-    title="ChatPPT",
-    css="""
-    body { animation: fadeIn 2s; }
-    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-    """
+    title="ChatPPT"
 ) as demo:
 
     # 添加标题
@@ -102,14 +98,14 @@ with gr.Blocks(
     contents_chatbot = gr.Chatbot(
         placeholder="<strong>AI 一键生成 PPT</strong><br><br>输入你的主题内容或上传音频文件",
         height=800,
-        type="messages",
+        # type="messages",
     )
 
     # 定义 ChatBot 和生成内容的接口
     gr.ChatInterface(
         fn=generate_contents,  # 处理用户输入的函数
         chatbot=contents_chatbot,  # 绑定的聊天机器人
-        type="messages",
+        # type="messages",
         multimodal=True  # 支持多模态输入（文本和文件）
     )
 

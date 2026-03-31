@@ -45,7 +45,7 @@ class ChatBot(ABC):
         ])
 
         # 初始化 ChatOllama 模型，配置参数
-        self.chatbot = system_prompt | ChatOpenAI(model="gpt-4o-mini")  # 使用的模型名称)
+        self.chatbot = system_prompt | ChatOpenAI(model="Pro/deepseek-ai/DeepSeek-V3.2")  # 使用的模型名称)
 
         # 将聊天机器人与消息历史记录关联
         self.chatbot_with_history = RunnableWithMessageHistory(self.chatbot, get_session_history)
