@@ -1,28 +1,36 @@
 # ===== 核心 UI（必须 >=5.20，避免 schema bug）=====
-gradio=6.10.0
-gradio_client=2.4.0
+gradio == 6.10.0
+gradio_client == 2.4.0
 
 # ===== LangChain（对齐 pydantic v2）=====
-langchain=1.2.13
-langchain_core=1.2.23
-langchain_community=0.4.1
-langchain_openai=1.1.12 
-langchain_ollama=1.0.1
+langchain==1.2.13
+langchain_core==1.2.23
+langchain_community==0.4.1
+langchain_openai==1.1.12 
+langchain_ollama==1.0.1
+
+# doc
+python-docx==1.1.2
+Pillow==10.4.0
 
 # ===== 模型 / 推理 =====
-torch=2.6.0+cu124
-transformers=4.46.0
-accelerate=1.13.0
-datasets=3.0.2
+torch==2.8.0
+transformers==4.46.0
+accelerate==1.13.0
+datasets==3.0.2
 
 # ===== 音频（whisper）=====
-openai-whisper=20250625
-librosa=0.10.2.post1
-soundfile=0.12.1
-ffmpeg-python=0.2.0
+openai-whisper==20250625
+librosa==0.10.2.post1
+soundfile==0.12.1
+ffmpeg-python==0.2.0
 
 # ===== 工具 =====
-loguru=0.7.2
-pydantic=2.12.5
-fastapi=0.135.2
-uvicorn=0.42.0
+loguru==0.7.2
+pydantic==2.12.5
+fastapi==0.135.2
+uvicorn==0.42.0
+
+sentencepiece==0.2.1
+bitsandbytes==0.44.1
+jupyterlab==4.3.0
