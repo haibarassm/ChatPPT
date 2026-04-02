@@ -81,12 +81,13 @@ def generate_contents(message, history):
         LOG.info(user_requirement)
 
         # 使用工作流（chatbot + review agent 循环）生成内容
-        # result = workflow.run(user_requirement, session_id="gradio_session")
-        # slides_content = result["content"]
+        result = workflow.run(user_requirement, session_id="gradio_session")
+        slides_content = result["content"]
 
-        # LOG.info(f"工作流完成，共 {result['rounds']} 轮审查")
+        LOG.info(f"工作流完成，共 {result['rounds']} 轮审查")
 
-        slides_content =chatbot.chat_with_history(user_requirement)
+        # 不使用反思的答案
+        # slides_content =chatbot.chat_with_history(user_requirement)
         return slides_content
     except Exception as e:
         LOG.error(f"[内容生成错误]: {e}")

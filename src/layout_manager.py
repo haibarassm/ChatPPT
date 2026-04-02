@@ -43,7 +43,7 @@ def get_content_layout_preference(slide_content: SlideContent) -> LayoutDirectio
 
     if has_image:
         # 有图片的情况
-        if text_density > 200 or bullet_count > 6:
+        if text_density > 200 or bullet_count > 3:
             return 'horizontal'  # 内容多，左右分栏
         else:
             return 'vertical'    # 内容少，上下布局
