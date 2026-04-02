@@ -6,6 +6,28 @@ from slide_builder import SlideBuilder
 from layout_manager import LayoutManager
 from logger import LOG  # 引入日志模块
 
+
+def clean_slide_title(title: str) -> str:
+    """
+    清理幻灯片标题，移除"幻灯片X："等前缀。
+
+    例如：
+    - "幻灯片1：Hacker News 简介" -> "Hacker News 简介"
+    - "幻灯片 1：Hacker News 简介" -> "Hacker News 简介"
+    - "Slide 1: Hacker News 简介" -> "Hacker News 简介"
+    """
+    # 移除 "幻灯片X："、"幻灯片 X："、"Slide X:" 等前缀
+    # 匹配模式：幻灯片/Slide + 空格/数字 + ：/:
+    patterns = [
+        r'^幻灯片\s*\d+[:：]\s*',  # 幻灯片1：、幻灯片 1：
+        r'^Slide\s*\d+[:：]\s*',  # Slide 1:、Slide 1：
+        r'^\d+[:：]\s*',  # 纯数字前缀：1：、1:
+    ]
+    for pattern in patterns:
+        title = re.sub(pattern, '', title, flags=re.IGNORECASE)
+    return title.strip()
+
+
 def parse_bullet_point_level(line: str) -> (int, str):
     """
     根据项目符号行解析其缩进层级，并返回项目符号的文本内容。
@@ -58,11 +80,15 @@ def parse_input_text(input_text: str, layout_manager: LayoutManager) -> PowerPoi
             match = slide_title_pattern.match(line)
             if match:
                 title = match.group(1).strip()
+                # 清理标题，移除"幻灯片X："等前缀
+                title = clean_slide_title(title)
                 # 保存第一个 ## 标题作为备选
                 if first_slide_title is None:
                     first_slide_title = title
             if match:
                 title = match.group(1).strip()
+                # 清理标题，移除"幻灯片X："等前缀
+                title = clean_slide_title(title)
 
                 # 如果有当前幻灯片，生成并添加到幻灯片列表中
                 if slide_builder:
