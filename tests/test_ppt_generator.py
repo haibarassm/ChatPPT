@@ -106,52 +106,96 @@ class TestPPTGenerator(unittest.TestCase):
                 images = [shape for shape in slide.shapes if shape.shape_type == 13]  # 13 为图片形状类型
                 self.assertGreater(len(images), 0, f"幻灯片 {idx + 1} 应该包含图片，但未找到。")
 
-    def test_missing_image_placeholder_removal(self):
+    def test_missing_image_layout_selection(self):
         """
-        测试当图片不存在时，placeholder 是否被正确删除。
-        验证不会出现白色图片占位符。
+        测试当图片不存在时，系统会自动选择不含图片的布局。
         """
-        # 创建一个测试用 PowerPoint 数据，使用不存在的图片路径
-        test_data = PowerPoint(
-            title="测试缺失图片",
-            slides=[
-                Slide(
-                    layout_id=8,  # 使用带图片占位符的布局
-                    layout_name="Title, Content, Picture 2",
-                    content=SlideContent(
-                        title="测试幻灯片",
-                        bullet_points=[{"text": "测试内容", "level": 0}],
-                        image_path="images/non_existent_image_12345.png"  # 不存在的图片
-                    )
-                )
-            ]
+        # 需要通过 SlideBuilder 来测试布局选择逻辑
+        sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../src')))
+        from slide_builder import SlideBuilder
+        from layout_manager import LayoutManager, calculate_content_encoding
+        from template_manager import load_template, get_layout_mapping
+
+        # 加载模板
+        template = load_template("templates/SimpleTemplate.pptx")
+        layout_mapping = get_layout_mapping(template)
+        layout_manager = LayoutManager(layout_mapping)
+
+        # 创建一个不存在的图片路径
+        non_existent_image = "images/this_image_does_not_exist_12345.png"
+
+        # 创建 SlideContent
+        content = SlideContent(
+            title="测试幻灯片",
+            bullet_points=[{"text": "测试内容", "level": 0}],
+            image_path=non_existent_image  # 不存在的图片
         )
 
-        output_path = "outputs/test_missing_image.pptx"
+        # 验证编码计算
+        encoding = calculate_content_encoding(content)
+        # 应该是 3 (Title + Content)，而不是 7 (Title + Content + Picture)
+        self.assertEqual(encoding, 3, "图片不存在时，编码应该是 3 (Title + Content)")
 
-        try:
-            # 生成演示文稿
-            generate_presentation(test_data, self.template_path, output_path)
+        # 使用 SlideBuilder 构建幻灯片
+        builder = SlideBuilder(layout_manager)
+        builder.set_title(content.title)
+        for point in content.bullet_points:
+            builder.add_bullet_point(point["text"], point["level"])
+        builder.set_image(content.image_path)
 
-            # 打开生成的文件验证
-            prs = Presentation(output_path)
-            slide = prs.slides[0]
+        slide = builder.finalize()
 
-            # 检查是否有图片被插入（不应该有）
-            images = [shape for shape in slide.shapes if shape.shape_type == 13]
-            self.assertEqual(len(images), 0, "图片不存在时，不应该插入任何图片")
+        # 验证选择的布局不应该是带图片的布局
+        # 检查 layout_name 是否不包含 "Picture"
+        self.assertNotIn("Picture", slide.layout_name,
+                         f"图片不存在时，不应该选择带图片的布局，实际选择: {slide.layout_name}")
 
-            # 检查 placeholder 数量
-            # 正常情况下，layout 8 应该有图片 placeholder，但图片不存在时应该被删除
-            placeholders = [shape for shape in slide.placeholders if shape.placeholder_format.type == 18]
-            self.assertEqual(len(placeholders), 0, "图片不存在时，图片 placeholder 应该被删除")
+        print(f"✓ 测试通过：图片不存在时，自动选择了不含图片的布局: {slide.layout_name}")
 
-            print("✓ 测试通过：图片不存在时，placeholder 被正确删除，没有插入白色图片")
+    def test_existing_image_layout_selection(self):
+        """
+        测试当图片存在时，系统会选择含图片的布局。
+        """
+        # 需要通过 SlideBuilder 来测试布局选择逻辑
+        sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../src')))
+        from slide_builder import SlideBuilder
+        from layout_manager import LayoutManager, calculate_content_encoding
+        from template_manager import load_template, get_layout_mapping
 
-        finally:
-            # 清理测试文件
-            if os.path.exists(output_path):
-                os.remove(output_path)
+        # 加载模板
+        template = load_template("templates/SimpleTemplate.pptx")
+        layout_mapping = get_layout_mapping(template)
+        layout_manager = LayoutManager(layout_mapping)
+
+        # 创建一个存在的图片路径
+        existing_image = "images/performance_chart.png"
+
+        # 创建 SlideContent
+        content = SlideContent(
+            title="测试幻灯片",
+            bullet_points=[{"text": "测试内容", "level": 0}],
+            image_path=existing_image  # 存在的图片
+        )
+
+        # 验证编码计算
+        encoding = calculate_content_encoding(content)
+        # 应该是 7 (Title + Content + Picture)
+        self.assertEqual(encoding, 7, "图片存在时，编码应该是 7 (Title + Content + Picture)")
+
+        # 使用 SlideBuilder 构建幻灯片
+        builder = SlideBuilder(layout_manager)
+        builder.set_title(content.title)
+        for point in content.bullet_points:
+            builder.add_bullet_point(point["text"], point["level"])
+        builder.set_image(content.image_path)
+
+        slide = builder.finalize()
+
+        # 验证选择的布局应该是带图片的布局
+        self.assertIn("Picture", slide.layout_name,
+                      f"图片存在时，应该选择带图片的布局，实际选择: {slide.layout_name}")
+
+        print(f"✓ 测试通过：图片存在时，选择了含图片的布局: {slide.layout_name}")
 
     def test_insert_image_placeholder_with_valid_image(self):
         """

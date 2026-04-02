@@ -67,10 +67,14 @@ CONTENT_TYPE_WEIGHTS = {
 def calculate_layout_encoding(layout_name: str) -> int:
     """
     根据 layout_name 计算其编码值。
-    移除编号部分，只对类型进行编码，顺序无关。
+    移除编号部分和方向标记（horizontal/vertical），只对类型进行编码。
     """
-    # 移除 layout_name 中的编号部分，并按 ',' 分割
-    parts = layout_name.split(', ')
+    # 移除方向标记
+    cleaned_name = layout_name.replace(', horizontal', '').replace(',horizontal', '')
+    cleaned_name = cleaned_name.replace(', vertical', '').replace(',vertical', '')
+
+    # 按 ',' 分割
+    parts = cleaned_name.split(', ')
     base_name = ' '.join(part.split()[0] for part in parts)  # 只保留类型部分，移除编号
 
     # 计算权重和
@@ -82,16 +86,26 @@ def calculate_layout_encoding(layout_name: str) -> int:
 def calculate_content_encoding(slide_content: SlideContent) -> int:
     """
     根据 SlideContent 的成员情况计算其编码值。
-    如果有 title、bullet_points 和 image_path，则根据这些成员生成编码。
+    如果有 title、bullet_points 和真实存在的 image_path，则根据这些成员生成编码。
+
+    注意：image_path 必须真实存在文件才会计入 Picture 权重。
     """
+    import os
+
     encoding = 0
     if slide_content.title:
         encoding += CONTENT_TYPE_WEIGHTS['Title']
     if slide_content.bullet_points:
         encoding += CONTENT_TYPE_WEIGHTS['Content']
+    # 只有当图片路径存在且文件真实存在时，才计入 Picture 权重
     if slide_content.image_path:
-        encoding += CONTENT_TYPE_WEIGHTS['Picture']
-    
+        # 构建绝对路径并检查文件是否存在
+        image_full_path = os.path.join(os.getcwd(), slide_content.image_path)
+        if os.path.exists(image_full_path):
+            encoding += CONTENT_TYPE_WEIGHTS['Picture']
+        else:
+            LOG.debug(f"图片文件不存在，不使用图片布局: {image_full_path}")
+
     return encoding
 
 

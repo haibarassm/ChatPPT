@@ -47,13 +47,9 @@ def insert_image_centered_in_placeholder(new_slide, image_path):
             # 构建图片的绝对路径
             image_full_path = os.path.join(os.getcwd(), image_path)
 
-            # 检查图片是否存在
+            # 防御性检查：图片应该已经存在，但再次确认
             if not os.path.exists(image_full_path):
-                LOG.warning(f"图片路径 '{image_full_path}' 不存在，删除 placeholder 以保留原始布局。")
-                # 删除 placeholder 以保留原始布局
-                sp = shape._element  # 获取占位符的 XML 元素
-                sp.getparent().remove(sp)  # 从父元素中删除
-                LOG.debug("已删除图片的 placeholder（图片不存在）")
+                LOG.warning(f"图片路径 '{image_full_path}' 不存在（防御性检查），跳过插入。")
                 return
 
             # 打开图片并获取其大小（以像素为单位）
@@ -139,9 +135,13 @@ def generate_presentation(powerpoint_data, template_path: str, output_path: str)
 
                 break
 
-        # 插入图片
+        # 插入图片（只有当图片文件真实存在时）
         if slide.content.image_path:
-            insert_image_centered_in_placeholder(new_slide, slide.content.image_path)
+            image_full_path = os.path.join(os.getcwd(), slide.content.image_path)
+            if os.path.exists(image_full_path):
+                insert_image_centered_in_placeholder(new_slide, slide.content.image_path)
+            else:
+                LOG.debug(f"跳过不存在的图片: {image_full_path}")
 
     # 保存生成的 PowerPoint 文件
     prs.save(output_path)
