@@ -40,7 +40,7 @@ class ContentFormatter(ABC):
         ])
         
         self.model = ChatOpenAI(
-            model="gpt-4o-mini",
+            model="Pro/deepseek-ai/DeepSeek-V3.2",
             temperature=0.5,
             max_tokens=4096,
         )
