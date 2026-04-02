@@ -11,10 +11,6 @@ from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 
 from logger import LOG  # 导入日志工具
-import sys
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from minicpm_v_model import model as minicpm_model
-from sd3_generator import get_sd3_generator
 
 class ImageAdvisor(ABC):
     """
@@ -139,6 +135,11 @@ class ImageAdvisor(ABC):
             int: 相关性分数 (0-100)
         """
         try:
+            # 延迟导入避免启动时加载模型
+            import sys
+            sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+            from minicpm_v_model import get_model
+
             # 构建评分提示
             question = f"""请评估这幅图像与主题"{query}"的相关性。
 
@@ -150,6 +151,9 @@ class ImageAdvisor(ABC):
 
 请只返回一个0-100之间的整数分数，不要包含任何其他文字。"""
 
+            # 获取模型
+            model, tokenizer = get_model()
+
             # 打开图像
             image = Image.open(image_file).convert('RGB')
 
@@ -157,10 +161,10 @@ class ImageAdvisor(ABC):
             msgs = [{'role': 'user', 'content': [image, question]}]
 
             # 调用模型
-            response = minicpm_model.chat(
+            response = model.chat(
                 image=None,
                 msgs=msgs,
-                tokenizer=None,
+                tokenizer=tokenizer,
                 sampling=sampling,
                 temperature=temperature
             )
