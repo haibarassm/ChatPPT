@@ -39,22 +39,27 @@ def insert_image_centered_in_placeholder(new_slide, image_path):
     将图片插入到 Slide 中，使其中心与 placeholder 的中心对齐。
     如果图片尺寸超过 placeholder，则进行缩小适配。
     在插入成功后删除 placeholder。
+    如果图片不存在，删除 placeholder 以保留原始布局。
     """
-    # 构建图片的绝对路径
-    image_full_path = os.path.join(os.getcwd(), image_path)
-    
-    # 检查图片是否存在
-    if not os.path.exists(image_full_path):
-        LOG.warning(f"图片路径 '{image_full_path}' 不存在，跳过此图片。")
-        return
-
-    # 打开图片并获取其大小（以像素为单位）
-    with Image.open(image_full_path) as img:
-        img_width_px, img_height_px = img.size
-
     # 遍历找到图片的 placeholder（type 18 表示图片 placeholder）
     for shape in new_slide.placeholders:
         if shape.placeholder_format.type == 18:
+            # 构建图片的绝对路径
+            image_full_path = os.path.join(os.getcwd(), image_path)
+
+            # 检查图片是否存在
+            if not os.path.exists(image_full_path):
+                LOG.warning(f"图片路径 '{image_full_path}' 不存在，删除 placeholder 以保留原始布局。")
+                # 删除 placeholder 以保留原始布局
+                sp = shape._element  # 获取占位符的 XML 元素
+                sp.getparent().remove(sp)  # 从父元素中删除
+                LOG.debug("已删除图片的 placeholder（图片不存在）")
+                return
+
+            # 打开图片并获取其大小（以像素为单位）
+            with Image.open(image_full_path) as img:
+                img_width_px, img_height_px = img.size
+
             placeholder_width = shape.width
             placeholder_height = shape.height
             placeholder_left = shape.left
@@ -123,7 +128,7 @@ def generate_presentation(powerpoint_data, template_path: str, output_path: str)
 
                 # 直接使用第一个段落，不添加新的段落，避免额外空行
                 first_paragraph = text_frame.paragraphs[0]
-                
+
                 # 将要点内容作为项目符号列表添加到文本框中
                 for point in slide.content.bullet_points:
                     # 第一个要点覆盖初始段落，其他要点添加新段落

@@ -7,7 +7,7 @@ from pptx import Presentation
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../src')))
 
 from data_structures import PowerPoint, Slide, SlideContent
-from ppt_generator import generate_presentation
+from ppt_generator import generate_presentation, insert_image_centered_in_placeholder
 
 class TestPPTGenerator(unittest.TestCase):
     """
@@ -105,6 +105,101 @@ class TestPPTGenerator(unittest.TestCase):
             if slide_data.content.image_path:
                 images = [shape for shape in slide.shapes if shape.shape_type == 13]  # 13 为图片形状类型
                 self.assertGreater(len(images), 0, f"幻灯片 {idx + 1} 应该包含图片，但未找到。")
+
+    def test_missing_image_placeholder_removal(self):
+        """
+        测试当图片不存在时，placeholder 是否被正确删除。
+        验证不会出现白色图片占位符。
+        """
+        # 创建一个测试用 PowerPoint 数据，使用不存在的图片路径
+        test_data = PowerPoint(
+            title="测试缺失图片",
+            slides=[
+                Slide(
+                    layout_id=8,  # 使用带图片占位符的布局
+                    layout_name="Title, Content, Picture 2",
+                    content=SlideContent(
+                        title="测试幻灯片",
+                        bullet_points=[{"text": "测试内容", "level": 0}],
+                        image_path="images/non_existent_image_12345.png"  # 不存在的图片
+                    )
+                )
+            ]
+        )
+
+        output_path = "outputs/test_missing_image.pptx"
+
+        try:
+            # 生成演示文稿
+            generate_presentation(test_data, self.template_path, output_path)
+
+            # 打开生成的文件验证
+            prs = Presentation(output_path)
+            slide = prs.slides[0]
+
+            # 检查是否有图片被插入（不应该有）
+            images = [shape for shape in slide.shapes if shape.shape_type == 13]
+            self.assertEqual(len(images), 0, "图片不存在时，不应该插入任何图片")
+
+            # 检查 placeholder 数量
+            # 正常情况下，layout 8 应该有图片 placeholder，但图片不存在时应该被删除
+            placeholders = [shape for shape in slide.placeholders if shape.placeholder_format.type == 18]
+            self.assertEqual(len(placeholders), 0, "图片不存在时，图片 placeholder 应该被删除")
+
+            print("✓ 测试通过：图片不存在时，placeholder 被正确删除，没有插入白色图片")
+
+        finally:
+            # 清理测试文件
+            if os.path.exists(output_path):
+                os.remove(output_path)
+
+    def test_insert_image_placeholder_with_valid_image(self):
+        """
+        测试当图片存在时，insert_image_centered_in_placeholder 函数是否正确工作。
+        """
+        # 创建一个临时测试图片
+        from PIL import Image as PILImage
+        import tempfile
+
+        test_image_path = "images/test_temp_image.png"
+        try:
+            # 创建一个简单的测试图片
+            img = PILImage.new('RGB', (100, 100), color='red')
+            img.save(test_image_path)
+
+            # 创建一个带有图片 placeholder 的幻灯片
+            prs = Presentation(self.template_path)
+            # 找到一个有图片 placeholder 的 layout
+            layout = None
+            for lay in prs.slide_layouts:
+                # 检查是否有图片 placeholder
+                for placeholder in lay.placeholders:
+                    if placeholder.placeholder_format.type == 18:
+                        layout = lay
+                        break
+                if layout:
+                    break
+
+            if layout:
+                slide = prs.slides.add_slide(layout)
+
+                # 调用函数插入图片
+                insert_image_centered_in_placeholder(slide, test_image_path)
+
+                # 验证图片被插入
+                images = [shape for shape in slide.shapes if shape.shape_type == 13]
+                self.assertGreater(len(images), 0, "图片应该被成功插入")
+
+                # 验证 placeholder 被删除
+                placeholders = [shape for shape in slide.placeholders if shape.placeholder_format.type == 18]
+                self.assertEqual(len(placeholders), 0, "图片插入后，placeholder 应该被删除")
+
+                print("✓ 测试通过：图片存在时，图片被正确插入，placeholder 被删除")
+
+        finally:
+            # 清理测试图片
+            if os.path.exists(test_image_path):
+                os.remove(test_image_path)
 
     def tearDown(self):
         """
