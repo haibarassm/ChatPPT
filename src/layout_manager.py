@@ -3,6 +3,59 @@ from typing import List, Tuple
 from data_structures import SlideContent
 from logger import LOG
 
+
+def estimate_content_height(slide_content: SlideContent) -> int:
+    """
+    估算幻灯片内容的相对高度（用于布局选择）。
+
+    返回值说明：
+    - 1-3: 内容较少，适合简单布局
+    - 4-7: 内容中等，适合标准布局
+    - 8+: 内容较多，需要大空间或两栏布局
+
+    计算规则：
+    - 每个要点计 1 分
+    - 每个层级增加 0.5 分
+    - 长文本（超过 30 字）额外计 0.5 分
+    """
+    score = 0
+    for point in slide_content.bullet_points:
+        # 基础分：每个要点 1 分
+        score += 1
+        # 层级加成
+        score += point.get('level', 0) * 0.5
+        # 长文本加成
+        if len(point.get('text', '')) > 30:
+            score += 0.5
+
+    return int(score)
+
+
+def get_content_category(slide_content: SlideContent) -> str:
+    """
+    根据内容量和类型返回内容类别。
+
+    返回：
+    - 'minimal': 内容极少（1-2 个要点，无层级）
+    - 'light': 内容较少（2-4 个要点，少量层级）
+    - 'medium': 内容中等（4-7 个要点，或有多层级）
+    - 'heavy': 内容较多（7+ 个要点，或复杂层级）
+    """
+    height_score = estimate_content_height(slide_content)
+    bullet_count = len(slide_content.bullet_points)
+
+    # 检查是否有复杂层级
+    has_deep_levels = any(p.get('level', 0) > 1 for p in slide_content.bullet_points)
+
+    if bullet_count <= 2 and not has_deep_levels:
+        return 'minimal'
+    elif bullet_count <= 4 and not has_deep_levels:
+        return 'light'
+    elif bullet_count <= 7 or (bullet_count <= 5 and has_deep_levels):
+        return 'medium'
+    else:
+        return 'heavy'
+
 # 定义 content_type 对应的权重
 CONTENT_TYPE_WEIGHTS = {
     'Title': 1,
@@ -52,9 +105,31 @@ class LayoutStrategy:
 
     def get_layout(self, slide_content: SlideContent) -> Tuple[int, str]:
         """
-        根据 SlideContent 内容随机选择一个合适的布局。
+        根据 SlideContent 内容和布局名称选择合适的布局。
+
+        布局选择逻辑：
+        - 优先选择适合内容量的布局（根据布局名称中的关键字）
+        - "Two Content" -> 适合中等/大量内容
+        - "Comparison" -> 适合对比类内容
+        - "Vertical" -> 适合长文本
         """
-        return random.choice(self.layout_group)  # 随机选择布局
+        content_category = get_content_category(slide_content)
+
+        # 根据内容类别和布局名称进行更细致的选择
+        if content_category in ['medium', 'heavy']:
+            # 优先选择两栏或大空间布局
+            preferred_layouts = []
+            for layout_id, layout_name in self.layout_group:
+                name_lower = layout_name.lower()
+                # 优先选择包含 "two content", "comparison", "vertical" 等关键字的布局
+                if any(keyword in name_lower for keyword in ['two content', 'comparison', 'vertical', 'blank']):
+                    preferred_layouts.append((layout_id, layout_name))
+
+            if preferred_layouts:
+                return random.choice(preferred_layouts)
+
+        # 默认随机选择
+        return random.choice(self.layout_group)
 
 # 布局管理器类，负责根据 SlideContent 自动选择合适的布局策略。
 class LayoutManager:
