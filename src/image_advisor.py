@@ -185,6 +185,16 @@ class ImageAdvisor(ABC):
             max_size (int): 最大边长，默认 1080
         """
         try:
+            # 转换调色板模式（P）为 RGB，因为 JPEG 不支持调色板模式
+            if img.mode == "P":
+                img = img.convert("RGB")
+            # 转换 RGBA 为 RGB（如果保存为 JPEG）
+            elif img.mode == "RGBA" and format == "JPEG":
+                # 创建白色背景
+                background = Image.new("RGB", img.size, (255, 255, 255))
+                background.paste(img, mask=img.split()[3])  # 使用 alpha 通道作为 mask
+                img = background
+
             width, height = img.size
             if max(width, height) > max_size:
                 scaling_factor = max_size / max(width, height)
