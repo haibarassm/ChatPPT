@@ -102,6 +102,12 @@ def handle_image_generate(history):
         last_message = history[-1]
         slides_content = last_message["content"]
 
+        # 如果 content 是列表，取最后一个元素
+        if isinstance(slides_content, list):
+            slides_content = slides_content[-1]
+            if isinstance(slides_content, list):
+                slides_content = str(slides_content)
+
         content_with_images, image_pair = image_advisor.generate_images(slides_content)
 
         # 更新最后一条消息
@@ -122,7 +128,20 @@ def handle_generate(history):
 
         # 获取最后一条 AI 回复
         last_message = history[-1]
+        LOG.info(f"[DEBUG] last_message: {last_message}")
+        LOG.info(f"[DEBUG] type: {type(last_message)}")
         slides_content = last_message["content"]
+
+        # 如果 content 是列表，取最后一个元素
+        if isinstance(slides_content, list):
+            LOG.info(f"[DEBUG] slides_content is list, taking last element")
+            slides_content = slides_content[-1]
+            # 如果最后一个元素还是列表，继续处理
+            if isinstance(slides_content, list):
+                LOG.info(f"[DEBUG] last element is also list: {slides_content}")
+                slides_content = str(slides_content)
+
+        LOG.info(f"[DEBUG] final slides_content type: {type(slides_content)}")
 
         # 解析输入文本，生成幻灯片数据和演示文稿标题
         powerpoint_data, presentation_title = parse_input_text(slides_content, layout_manager)
