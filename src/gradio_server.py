@@ -1,5 +1,7 @@
 import gradio as gr
 import os
+import re
+import time
 
 from config import Config
 from chatbot import ChatBot
@@ -102,11 +104,36 @@ def handle_image_generate(history):
         last_message = history[-1]
         slides_content = last_message["content"]
 
-        # 如果 content 是列表，取最后一个元素
+        # 如果 content 是列表，查找 assistant 角色的消息
         if isinstance(slides_content, list):
-            slides_content = slides_content[-1]
-            if isinstance(slides_content, list):
-                slides_content = str(slides_content)
+            LOG.info(f"[DEBUG IMAGE] slides_content is list with {len(slides_content)} items")
+            # gradio 6.10.0 格式: [{"text": "...", "type": "..."}]
+            extracted_texts = []
+            for item in slides_content:
+                if isinstance(item, dict) and "text" in item:
+                    extracted_texts.append(item["text"])
+                elif isinstance(item, dict) and "content" in item:
+                    content = item["content"]
+                    if isinstance(content, list):
+                        for msg in content:
+                            if isinstance(msg, dict) and "text" in msg:
+                                extracted_texts.append(msg["text"])
+                            elif hasattr(msg, "content"):
+                                extracted_texts.append(str(msg.content))
+                            else:
+                                extracted_texts.append(str(msg))
+                    else:
+                        extracted_texts.append(str(content))
+                elif hasattr(item, 'content'):
+                    extracted_texts.append(str(item.content))
+                else:
+                    extracted_texts.append(str(item))
+            slides_content = "\n".join(extracted_texts)
+
+        # 确保是字符串
+        if not isinstance(slides_content, str):
+            LOG.error(f"[DEBUG IMAGE] slides_content is not str, type={type(slides_content)}, converting to str")
+            slides_content = str(slides_content)
 
         content_with_images, image_pair = image_advisor.generate_images(slides_content)
 
@@ -122,31 +149,64 @@ def handle_image_generate(history):
 # 定义处理生成按钮点击事件的函数
 def handle_generate(history):
     try:
+        LOG.info(f"[DEBUG] history length: {len(history) if history else 0}")
+        for i, msg in enumerate(history) if history else []:
+            LOG.info(f"[DEBUG] history[{i}]: role={msg.get('role')}, content_type={type(msg.get('content'))}")
+
         # history 格式: [{"role": ..., "content": ...}, ...]
         if not history:
             raise gr.Error("【提示】请先输入你的主题内容或上传文件")
 
         # 获取最后一条 AI 回复
         last_message = history[-1]
-        LOG.info(f"[DEBUG] last_message: {last_message}")
-        LOG.info(f"[DEBUG] type: {type(last_message)}")
-        slides_content = last_message["content"]
+        LOG.info(f"[DEBUG] last_message: role={last_message.get('role')}, content_type={type(last_message.get('content'))}")
+        slides_content = last_message.get("content", "")
 
-        # 如果 content 是列表，取最后一个元素
+        # 如果 content 是列表，需要提取文本
         if isinstance(slides_content, list):
-            LOG.info(f"[DEBUG] slides_content is list, taking last element")
-            slides_content = slides_content[-1]
-            # 如果最后一个元素还是列表，继续处理
-            if isinstance(slides_content, list):
-                LOG.info(f"[DEBUG] last element is also list: {slides_content}")
-                slides_content = str(slides_content)
+            LOG.info(f"[DEBUG] content is list with {len(slides_content)} items")
+            # gradio 6.10.0 格式: [{"text": "...", "type": "..."}]
+            extracted_texts = []
+            for item in slides_content:
+                if isinstance(item, dict) and "text" in item:
+                    # gradio 6.10.0 格式
+                    extracted_texts.append(item["text"])
+                elif hasattr(item, 'content'):  # BaseMessage 对象
+                    extracted_texts.append(str(item.content))
+                elif isinstance(item, str):
+                    extracted_texts.append(item)
+                elif isinstance(item, dict):
+                    extracted_texts.append(item.get("content", str(item)))
+                else:
+                    extracted_texts.append(str(item))
+            slides_content = "\n".join(extracted_texts)
+        elif hasattr(slides_content, 'content'):  # 单个 BaseMessage 对象
+            slides_content = str(slides_content.content)
 
-        LOG.info(f"[DEBUG] final slides_content type: {type(slides_content)}")
+        # 确保是字符串
+        if not isinstance(slides_content, str):
+            LOG.error(f"[DEBUG] slides_content is not str, type={type(slides_content)}, converting")
+            slides_content = str(slides_content)
+
+        LOG.info(f"[DEBUG] final slides_content type: {type(slides_content)}, length: {len(slides_content)}")
+        LOG.info(f"[DEBUG] slides_content preview (first 500 chars): {slides_content[:500]}")
 
         # 解析输入文本，生成幻灯片数据和演示文稿标题
         powerpoint_data, presentation_title = parse_input_text(slides_content, layout_manager)
+
+        # 清理标题，确保作为文件名是安全的
+        # 移除或替换不适合作为文件名的字符
+        safe_title = re.sub(r'[<>:"/\\|?*]', '_', presentation_title)
+        # 移除首尾空格和点
+        safe_title = safe_title.strip('. ')
+        # 如果为空，使用默认名称
+        if not safe_title:
+            safe_title = f"presentation_{int(time.time())}"
+
         # 定义输出的 PowerPoint 文件路径
-        output_pptx = f"outputs/{presentation_title}.pptx"
+        output_pptx = f"outputs/{safe_title}.pptx"
+
+        LOG.info(f"[DEBUG] 生成 PPT: title={presentation_title}, safe_title={safe_title}, output={output_pptx}")
 
         # 生成 PowerPoint 演示文稿
         generate_presentation(powerpoint_data, config.ppt_template, output_pptx)

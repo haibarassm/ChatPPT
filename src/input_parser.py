@@ -38,6 +38,9 @@ def parse_input_text(input_text: str, layout_manager: LayoutManager) -> PowerPoi
     bullet_pattern = re.compile(r'^(\s*)-\s+(.*)')
     image_pattern = re.compile(r'!\[.*?\]\((.*?)\)')
 
+    # 检测第一个 ## 标题作为备选标题
+    first_slide_title = None
+
     for line in lines:
         if line.strip() == "":
             continue  # 跳过空行
@@ -53,6 +56,11 @@ def parse_input_text(input_text: str, layout_manager: LayoutManager) -> PowerPoi
         # 幻灯片标题
         elif line.startswith('## '):
             match = slide_title_pattern.match(line)
+            if match:
+                title = match.group(1).strip()
+                # 保存第一个 ## 标题作为备选
+                if first_slide_title is None:
+                    first_slide_title = title
             if match:
                 title = match.group(1).strip()
 
@@ -85,6 +93,22 @@ def parse_input_text(input_text: str, layout_manager: LayoutManager) -> PowerPoi
     # 为最后一张幻灯片分配布局并添加到列表中
     if slide_builder:
         slides.append(slide_builder.finalize())
+
+    # 如果没有找到主标题 (# )，使用第一个 ## 标题或默认值
+    if not presentation_title:
+        if first_slide_title:
+            presentation_title = first_slide_title
+            LOG.warning(f"未找到主标题 (# )，使用第一个幻灯片标题: {presentation_title}")
+        else:
+            presentation_title = "演示文稿"
+            LOG.warning("未找到任何标题，使用默认标题: 演示文稿")
+
+    # 如果没有幻灯片，创建一个默认的
+    if not slides:
+        LOG.warning("没有生成任何幻灯片，创建默认幻灯片")
+        first_slide_builder = SlideBuilder(layout_manager)
+        first_slide_builder.set_title(presentation_title)
+        slides.append(first_slide_builder.finalize())
 
     # 返回 PowerPoint 数据结构以及演示文稿标题
     return PowerPoint(title=presentation_title, slides=slides), presentation_title
