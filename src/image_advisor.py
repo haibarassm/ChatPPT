@@ -11,6 +11,10 @@ from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 
 from logger import LOG  # 导入日志工具
+import sys
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from minicpm_v_model import model as minicpm_model
+from sd3_generator import get_sd3_generator
 
 class ImageAdvisor(ABC):
     """
@@ -85,11 +89,98 @@ class ImageAdvisor(ABC):
             save_directory = f"images/{image_directory}"
             os.makedirs(save_directory, exist_ok=True)
             save_path = os.path.join(save_directory, f"{img['slide_title']}_1.jpeg")
-            self.save_image(img["obj"], save_path)
-            image_pair[img["slide_title"]] = save_path
+
+            # 先保存临时图片用于评分
+            temp_save_path = save_path
+            self.save_image(img["obj"], temp_save_path)
+
+            # 评估图片与主题的相关性
+            relevance_score = self.score_image_relevance(temp_save_path, query)
+
+            if relevance_score >= 60:
+                # 相关性足够，使用搜索到的图片
+                LOG.info(f"[图片选择] 使用搜索图片，相关性分数: {relevance_score}")
+                image_pair[img["slide_title"]] = save_path
+            else:
+                # 相关性不足，使用文生图模型生成图片
+                LOG.info(f"[图片选择] 相关性分数不足({relevance_score})，使用文生图模型生成")
+
+                try:
+                    # 调用 SD3 生成器
+                    sd3_generator = get_sd3_generator()
+                    generated_img = sd3_generator.generate(
+                        query,
+                        num_inference_steps=30,
+                        guidance_scale=7.5,
+                        save_path=save_path
+                    )
+                    LOG.info(f"[文生图] 图片生成完成: {save_path}")
+                    image_pair[img["slide_title"]] = save_path
+                except Exception as e:
+                    LOG.error(f"[文生图] 生成失败: {e}")
+                    # 生成失败时，仍然使用搜索到的图片
+                    LOG.warning(f"[文生图] 生成失败，使用搜索图片作为后备")
+                    image_pair[img["slide_title"]] = save_path
 
         content_with_images = self.insert_images(markdown_content, image_pair)
         return content_with_images, image_pair
+
+    def score_image_relevance(self, image_file, query, sampling=False, temperature=0.3):
+        """
+        使用 MiniCPM 模型评估图像与查询主题的相关性。
+
+        参数:
+            image_file: 图片文件路径
+            query: 查询主题
+            sampling: 是否使用采样
+            temperature: 温度参数
+
+        返回:
+            int: 相关性分数 (0-100)
+        """
+        try:
+            # 构建评分提示
+            question = f"""请评估这幅图像与主题"{query}"的相关性。
+
+评分标准：
+- 图像内容与主题高度相关：90-100分
+- 图像内容与主题部分相关：60-89分
+- 图像内容与主题不太相关：30-59分
+- 图像内容与主题无关：0-29分
+
+请只返回一个0-100之间的整数分数，不要包含任何其他文字。"""
+
+            # 打开图像
+            image = Image.open(image_file).convert('RGB')
+
+            # 创建消息列表
+            msgs = [{'role': 'user', 'content': [image, question]}]
+
+            # 调用模型
+            response = minicpm_model.chat(
+                image=None,
+                msgs=msgs,
+                tokenizer=None,
+                sampling=sampling,
+                temperature=temperature
+            )
+
+            # 解析分数
+            import re
+            match = re.search(r'\d+', response)
+            if match:
+                score = int(match.group())
+                # 确保分数在 0-100 范围内
+                score = max(0, min(100, score))
+                LOG.info(f"[图片相关性评分] 图片: {image_file}, 主题: {query}, 分数: {score}")
+                return score
+            else:
+                LOG.warning(f"[图片相关性评分] 无法解析分数: {response}")
+                return 50  # 默认中等分数
+
+        except Exception as e:
+            LOG.error(f"[图片相关性评分] 评分失败: {e}")
+            return 50  # 出错时返回中等分数
 
     def get_keywords(self, advice):
         """
