@@ -79,11 +79,12 @@ def generate_contents(message, history):
         LOG.info(user_requirement)
 
         # 使用工作流（chatbot + review agent 循环）生成内容
-        result = workflow.run(user_requirement, session_id="gradio_session")
-        slides_content = result["content"]
+        # result = workflow.run(user_requirement, session_id="gradio_session")
+        # slides_content = result["content"]
 
-        LOG.info(f"工作流完成，共 {result['rounds']} 轮审查")
+        # LOG.info(f"工作流完成，共 {result['rounds']} 轮审查")
 
+        slides_content =chatbot.chat_with_history(user_requirement)
         return slides_content
     except Exception as e:
         LOG.error(f"[内容生成错误]: {e}")
@@ -93,18 +94,18 @@ def generate_contents(message, history):
 
 def handle_image_generate(history):
     try:
-        # history 格式: [[user_msg, bot_msg], ...]
+        # history 格式: [{"role": ..., "content": ...}, ...]
         if not history:
             raise gr.Error("【提示】请先输入主题内容")
 
         # 获取最后一条 AI 回复
-        last_exchange = history[-1]
-        slides_content = last_exchange[1]  # bot_msg
+        last_message = history[-1]
+        slides_content = last_message["content"]
 
         content_with_images, image_pair = image_advisor.generate_images(slides_content)
 
         # 更新最后一条消息
-        last_exchange[1] = content_with_images
+        last_message["content"] = content_with_images
 
         return history
     except Exception as e:
@@ -115,13 +116,13 @@ def handle_image_generate(history):
 # 定义处理生成按钮点击事件的函数
 def handle_generate(history):
     try:
-        # history 格式: [[user_msg, bot_msg], ...]
+        # history 格式: [{"role": ..., "content": ...}, ...]
         if not history:
             raise gr.Error("【提示】请先输入你的主题内容或上传文件")
 
         # 获取最后一条 AI 回复
-        last_exchange = history[-1]
-        slides_content = last_exchange[1]  # bot_msg
+        last_message = history[-1]
+        slides_content = last_message["content"]
 
         # 解析输入文本，生成幻灯片数据和演示文稿标题
         powerpoint_data, presentation_title = parse_input_text(slides_content, layout_manager)
