@@ -100,24 +100,26 @@ class LayoutStrategy:
     """
     通用布局策略类，通过参数化方式来选择适合的布局组。
 
+    布局命名规范：原有名称后加 `,horizontal` 或 `,vertical` 后缀
+    例如：`Title, Content, Picture 2, horizontal` 或 `Title, Content, Picture 2, vertical`
+
     两阶段选择策略：
     1. 第一阶段：根据元素类型（Title/Content/Picture）筛选布局组
-    2. 第二阶段：根据内容特征（文本密度、是否有图片）选择布局方向
+    2. 第二阶段：根据内容特征选择 horizontal 或 vertical 方向
     """
     def __init__(self, layout_group: List[Tuple[int, str]]):
         self.layout_group = layout_group  # 布局组成员，存储可选布局
 
-        # 预先分类布局
+        # 根据布局名称后缀分类
         self.horizontal_layouts = []  # 左右布局
         self.vertical_layouts = []    # 上下布局
-        self.neutral_layouts = []     # 中性布局
+        self.neutral_layouts = []     # 无方向标记的布局
 
         for layout_id, layout_name in layout_group:
-            name_lower = layout_name.lower()
-            # 根据布局名称中的关键字分类
-            if any(keyword in name_lower for keyword in ['two content', 'comparison', 'side']):
+            # 根据布局名称后缀分类
+            if ', horizontal' in layout_name or ',horizontal' in layout_name:
                 self.horizontal_layouts.append((layout_id, layout_name))
-            elif any(keyword in name_lower for keyword in ['vertical', 'title only', 'blank']):
+            elif ', vertical' in layout_name or ',vertical' in layout_name:
                 self.vertical_layouts.append((layout_id, layout_name))
             else:
                 self.neutral_layouts.append((layout_id, layout_name))
@@ -139,7 +141,7 @@ class LayoutStrategy:
         elif preference == 'vertical' and self.vertical_layouts:
             return random.choice(self.vertical_layouts)
         else:
-            # 中性偏好或对应方向无可用布局，使用全部布局
+            # 中性偏好或对应方向无可用布局，从全部布局中随机选择
             return random.choice(self.layout_group)
 
 # 布局管理器类，负责根据 SlideContent 自动选择合适的布局策略。
