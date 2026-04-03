@@ -102,7 +102,8 @@ class ImageAdvisor(ABC):
                 LOG.info(f"[图片选择] 相关性分数不足({relevance_score})，使用文生图模型生成")
 
                 try:
-                    # 调用 SD3 生成器
+                    # 调用 SD3 生成器（延迟导入避免启动时加载模型）
+                    from sd3_generator import get_sd3_generator
                     sd3_generator = get_sd3_generator()
                     generated_img = sd3_generator.generate(
                         query,

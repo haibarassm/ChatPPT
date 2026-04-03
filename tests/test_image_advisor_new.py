@@ -1,102 +1,14 @@
 import unittest
 import os
 import sys
-from unittest.mock import Mock, patch, MagicMock, MockOpen
+from unittest.mock import Mock, patch, MagicMock
 from PIL import Image as PILImage
 
 # 添加 src 目录到模块搜索路径
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../src')))
 
-
-class TestImageAdvisor(unittest.TestCase):
-    """测试 image_advisor 模块的功能"""
-
-    @patch('image_advisor.minicpm_model')
-    @patch('image_advisor.sd3_generator')
-    def test_score_image_relevance_mock(self, mock_sd3, mock_minicpm):
-        """测试图片相关性评分功能（使用 mock）"""
-        # 动态导入（此时 mock 已生效）
-        from image_advisor import ImageAdvisor
-
-        advisor = ImageAdvisor("./prompts/image_advisor.txt")
-
-        # 创建一个临时测试图片
-        test_image_path = "images/test_relevance.jpg"
-
-        try:
-            # 创建测试图片
-            img = PILImage.new('RGB', (100, 100), color='blue')
-            img.save(test_image_path)
-
-            # 设置 mock 返回值
-            mock_chat_response = "这张图片与主题的相关性评分是 85分"
-            mock_minicpm.model.chat = MagicMock(return_value=mock_chat_response)
-
-            # 调用评分函数
-            score = advisor.score_image_relevance(test_image_path, "测试主题")
-
-            # 验证结果
-            self.assertEqual(score, 85)
-            print(f"✓ 测试通过：图片相关性评分 = {score}")
-
-        finally:
-            # 清理测试图片
-            if os.path.exists(test_image_path):
-                os.remove(test_image_path)
-
-    @patch('image_advisor.minicpm_model')
-    @patch('image_advisor.sd3_generator')
-    def test_score_image_relevance_parse_error(self, mock_sd3, mock_minicpm):
-        """测试评分解析失败时的默认值"""
-        from image_advisor import ImageAdvisor
-
-        advisor = ImageAdvisor("./prompts/image_advisor.txt")
-
-        # 创建一个临时测试图片
-        test_image_path = "images/test_relevance_error.jpg"
-
-        try:
-            # 创建测试图片
-            img = PILImage.new('RGB', (100, 100), color='red')
-            img.save(test_image_path)
-
-            # Mock minicpm_model 返回无法解析的响应
-            mock_minicpm.model.chat = MagicMock(return_value="无法解析的响应文本")
-
-            # 调用评分函数
-            score = advisor.score_image_relevance(test_image_path, "测试主题")
-
-            # 应该返回默认中等分数
-            self.assertEqual(score, 50)
-            print(f"✓ 测试通过：解析失败时返回默认分数 {score}")
-
-        finally:
-            # 清理测试图片
-            if os.path.exists(test_image_path):
-                os.remove(test_image_path)
-
-    @patch('image_advisor.minicpm_model')
-    @patch('image_advisor.sd3_generator')
-    def test_score_image_relevance_exception(self, mock_sd3, mock_minicpm):
-        """测试评分函数异常时的处理"""
-        from image_advisor import ImageAdvisor
-
-        advisor = ImageAdvisor("./prompts/image_advisor.txt")
-
-        # 测试不存在的文件
-        score = advisor.score_image_relevance("nonexistent.jpg", "测试主题")
-
-        # 应该返回默认分数并记录错误
-        self.assertEqual(score, 50)
-        print(f"✓ 测试通过：异常时返回默认分数 {score}")
-
-    @patch('image_advisor.minicpm_model')
-    @patch('image_advisor.sd3_generator')
-    def test_generate_images_with_relevance_scoring(self, mock_sd3, mock_minicpm):
-        """测试带相关性评分的图片生成流程"""
-        from image_advisor import ImageAdvisor
-
-        advisor = ImageAdvisor("./prompts/image_advisor.txt")
+# 导入被测试的类
+from image_advisor import ImageAdvisor
 
 
 class TestImageAdvisor(unittest.TestCase):
