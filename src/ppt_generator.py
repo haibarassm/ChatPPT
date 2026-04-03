@@ -138,10 +138,12 @@ def generate_presentation(powerpoint_data, template_path: str, output_path: str)
         # 插入图片（只有当图片文件真实存在时）
         if slide.content.image_path:
             image_full_path = os.path.join(os.getcwd(), slide.content.image_path)
+            LOG.info(f"[PPT生成] 检查图片: {image_full_path}, 存在: {os.path.exists(image_full_path)}")
             if os.path.exists(image_full_path):
                 insert_image_centered_in_placeholder(new_slide, slide.content.image_path)
+                LOG.info(f"[PPT生成] 已插入图片: {slide.content.image_path}")
             else:
-                LOG.debug(f"跳过不存在的图片: {image_full_path}")
+                LOG.warning(f"跳过不存在的图片: {image_full_path}")
 
     # 保存生成的 PowerPoint 文件
     prs.save(output_path)

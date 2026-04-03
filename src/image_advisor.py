@@ -65,22 +65,20 @@ class ImageAdvisor(ABC):
             "input": markdown_content,
         })
 
-        LOG.debug(f"[Advisor 建议配图]\n{response.content}")
-
         keywords = self.get_keywords(response.content)
         image_pair = {}
 
         for slide_title, query in keywords.items():
-            # 检索图像
+            LOG.info(f"[处理幻灯片] {slide_title}")
+            LOG.debug(f"  关键词: {query}")
+
+            # 搜索图片
             images = self.get_bing_images(slide_title, query, num_images, timeout=1, retries=3)
-            if images:
-                for image in images:
-                    LOG.debug(f"Name: {image['slide_title']}, Query: {image['query']} 分辨率：{image['width']}x{image['height']}")
-            else:
-                LOG.warning(f"No images found for {slide_title}.")
+            if not images:
+                LOG.warning(f"未找到 {slide_title} 的图片")
                 continue
 
-            # 仅处理分辨率最高的图像
+            # 取分辨率最高的图片
             img = images[0]
             save_directory = f"images/{image_directory}"
             os.makedirs(save_directory, exist_ok=True)
@@ -102,11 +100,15 @@ class ImageAdvisor(ABC):
                 LOG.info(f"[图片选择] 相关性分数不足({relevance_score})，使用文生图模型生成")
 
                 try:
-                    # 调用 SD3 生成器（延迟导入避免启动时加载模型）
+                    # 释放 MiniCPM 模型占用的 GPU
+                    from minicpm_v_model import release_model
+                    release_model()
+
+                    # 调用 SD3 生成器（使用英文关键词）
                     from sd3_generator import get_sd3_generator
                     sd3_generator = get_sd3_generator()
                     generated_img = sd3_generator.generate(
-                        query,
+                        query,  # 使用英文关键词生成
                         num_inference_steps=30,
                         guidance_scale=7.5,
                         save_path=save_path
@@ -189,15 +191,47 @@ class ImageAdvisor(ABC):
 
     def get_keywords(self, advice):
         """
-        使用正则表达式提取关键词。
+        从 LLM 响应中提取关键词，优先使用 JSON 格式。
 
         参数:
             advice (str): 提示文本
         返回:
-            keywords (dict): 提取的关键词字典
+            keywords (dict): 提取的关键词字典，值为英文关键词字符串
         """
-        pairs = re.findall(r'\[(.+?)\]:\s*(.+)', advice)
-        keywords = {key.strip(): value.strip() for key, value in pairs}
+        import json
+
+        # 首先尝试解析 JSON
+        try:
+            # 提取 JSON 部分（处理可能的 markdown 代码块）
+            json_match = re.search(r'```json\s*(\{.*?\})\s*```', advice, re.DOTALL)
+            if json_match:
+                advice = json_match.group(1)
+            else:
+                # 尝试直接找到 JSON 对象（添加捕获组）
+                json_match = re.search(r'(\{.*?\})', advice, re.DOTALL)
+                if json_match:
+                    advice = json_match.group(1)
+
+            keywords = json.loads(advice)
+            LOG.debug(f"[检索关键词 JSON解析成功]{keywords}")
+            return keywords
+        except (json.JSONDecodeError, ValueError) as e:
+            LOG.warning(f"[检索关键词] JSON解析失败: {e}, 尝试正则表达式")
+
+        # JSON 失败，回退到正则表达式（兼容旧格式）
+        patterns = [
+            r'(?:\*\*|\[)(.+?)(?:\*\*|\])[:：]\s*(.+)',  # [标题]: 关键词
+        ]
+
+        keywords = {}
+        for pattern in patterns:
+            pairs = re.findall(pattern, advice, re.MULTILINE)
+            for key, keyword in pairs:
+                keywords[key.strip()] = keyword.strip()
+
+            if keywords:
+                break
+
         LOG.debug(f"[检索关键词 正则提取结果]{keywords}")
         return keywords
 
@@ -324,6 +358,8 @@ class ImageAdvisor(ABC):
         返回:
             new_content (str): 嵌入图像后的内容
         """
+        LOG.debug(f"[插入图片] image_pair 键: {list(image_pair.keys())}")
+
         lines = markdown_content.split('\n')
         new_lines = []
         i = 0
@@ -332,10 +368,15 @@ class ImageAdvisor(ABC):
             new_lines.append(line)
             if line.startswith('## '):
                 slide_title = line[3:].strip()
+                LOG.debug(f"[插入图片] 检查标题: '{slide_title}'")
+
                 if slide_title in image_pair:
                     image_path = image_pair[slide_title]
                     image_markdown = f'![{slide_title}]({image_path})'
                     new_lines.append(image_markdown)
+                    LOG.info(f"[插入图片] 已添加: {image_markdown}")
+                else:
+                    LOG.debug(f"[插入图片] 标题 '{slide_title}' 不在 image_pair 中，跳过")
             i += 1
         new_content = '\n'.join(new_lines)
         return new_content

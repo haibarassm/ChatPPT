@@ -35,10 +35,25 @@ class TestLayoutManager(unittest.TestCase):
         self.assertEqual(layout_name, "Title, Content 0")
 
     def test_assign_layout_title_content_and_image(self):
-        content = SlideContent(title="Full Slide", bullet_points=[{'text': "Full Content", 'level': 0}], image_path="images/test.png")
-        layout_id, layout_name = self.layout_manager.assign_layout(content)
-        self.assertEqual(layout_id, 8)
-        self.assertEqual(layout_name, "Title, Content, Picture 2")
+        # 创建测试图片目录和文件
+        import os
+        os.makedirs("images", exist_ok=True)
+        test_image_path = "images/test_layout.png"
+
+        # 创建一个简单的测试图片
+        try:
+            from PIL import Image as PILImage
+            img = PILImage.new('RGB', (100, 100), color='blue')
+            img.save(test_image_path)
+
+            content = SlideContent(title="Full Slide", bullet_points=[{'text': "Full Content", 'level': 0}], image_path=test_image_path)
+            layout_id, layout_name = self.layout_manager.assign_layout(content)
+            self.assertEqual(layout_id, 8)
+            self.assertEqual(layout_name, "Title, Content, Picture 2")
+        finally:
+            # 清理测试图片
+            if os.path.exists(test_image_path):
+                os.remove(test_image_path)
 
 if __name__ == "__main__":
     unittest.main()

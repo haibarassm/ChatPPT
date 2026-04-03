@@ -29,9 +29,15 @@ class SD3Generator:
                 torch_dtype=torch.float16,
                 use_safetensors=True,
                 variant="fp16"
-            )
-            # 显存优化
-            self.pipe.enable_model_cpu_offload()
+            ).to("cuda")
+
+            # 启用 VAE slicing 省显存（比 attention slicing 快）
+            self.pipe.enable_vae_slicing()
+
+            # 启用更高效的注意力实现
+            torch.backends.cuda.enable_flash_sdp(True)
+            torch.backends.cuda.enable_mem_efficient_sdp(True)
+
             LOG.info("SDXL 模型加载完成")
         except Exception as e:
             LOG.error(f"SDXL 模型加载失败: {e}")

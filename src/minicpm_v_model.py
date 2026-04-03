@@ -1,4 +1,10 @@
 from PIL import Image
+import torch
+import os
+
+# 设置 CUDA 内存分配策略（需要在使用 CUDA 之前设置）
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:4096"
+
 from transformers import AutoModel, AutoTokenizer
 from logger import LOG  # 引入日志模块，用于记录日志
 
@@ -15,17 +21,26 @@ def _load_model():
     if _model is None:
         try:
             LOG.info("正在加载 MiniCPM-V 模型...")
+            # 先加载到 CPU，确保所有权重都正确初始化
             _model = AutoModel.from_pretrained(
                 'openbmb/MiniCPM-V-2_6',
                 trust_remote_code=True,
-                device_map="cpu"  # 使用 CPU 避免兼容性问题
+                torch_dtype=torch.float16
             )
             _tokenizer = AutoTokenizer.from_pretrained(
                 'openbmb/MiniCPM-V-2_6',
                 trust_remote_code=True
             )
+            # 然后移到 GPU
+            _model = _model.to('cuda')
             _model.eval()  # 设置模型为评估模式
-            LOG.info("MiniCPM-V 模型加载完成")
+
+            # 验证模型真的在 GPU 上
+            device = next(_model.parameters()).device
+            LOG.info(f"MiniCPM-V 模型加载完成，运行设备: {device}")
+
+            if device.type != 'cuda':
+                LOG.warning(f"⚠️ 模型未在 GPU 上，当前设备: {device}")
         except Exception as e:
             LOG.error(f"MiniCPM-V 模型加载失败: {e}")
             raise
@@ -37,6 +52,19 @@ def get_model():
     if _model is None:
         _load_model()
     return _model, _tokenizer
+
+
+def release_model():
+    """释放模型占用的 GPU 显存"""
+    global _model, _tokenizer
+    if _model is not None:
+        del _model
+        _model = None
+    if _tokenizer is not None:
+        del _tokenizer
+        _tokenizer = None
+    torch.cuda.empty_cache()
+    LOG.info("MiniCPM 模型已释放，显存已清空")
 
 
 def chat_with_image(image_file, question='描述下这幅图', sampling=False, temperature=0.7, stream=False):
